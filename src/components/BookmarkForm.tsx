@@ -1,15 +1,21 @@
 "use client";
 
 import { createClient } from "@/lib/supabase/client";
-import { useState } from "react";
+import { Bookmark } from "@/lib/types";
+import { useRef, useState } from "react";
 
-export default function BookmarkForm() {
+interface BookmarkFormProps {
+  onBookmarkAdded: (bookmark: Bookmark) => void;
+}
+
+export default function BookmarkForm({ onBookmarkAdded }: BookmarkFormProps) {
   const [title, setTitle] = useState("");
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
-  const supabase = createClient();
+  const supabaseRef = useRef(createClient());
+  const supabase = supabaseRef.current;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,16 +47,22 @@ export default function BookmarkForm() {
       return;
     }
 
-    const { error: insertError } = await supabase.from("bookmarks").insert({
-      title: title.trim(),
-      url: url.trim(),
-      user_id: user.id,
-    });
+    const { data, error: insertError } = await supabase
+      .from("bookmarks")
+      .insert({
+        title: title.trim(),
+        url: url.trim(),
+        user_id: user.id,
+      })
+      .select()
+      .single();
 
     if (insertError) {
       setError("Failed to add bookmark. Please try again.");
       console.error(insertError);
-    } else {
+    } else if (data) {
+      // Immediately notify parent so it shows up in the list
+      onBookmarkAdded(data as Bookmark);
       setTitle("");
       setUrl("");
       setSuccess(true);

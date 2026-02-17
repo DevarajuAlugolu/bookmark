@@ -1,7 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import AuthButton from "@/components/AuthButton";
-import BookmarkForm from "@/components/BookmarkForm";
-import BookmarkList from "@/components/BookmarkList";
+import Dashboard from "@/components/Dashboard";
 
 export default async function Home() {
   const supabase = await createClient();
@@ -48,9 +47,9 @@ export default async function Home() {
       {/* Main Content */}
       <main className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
         {user ? (
-          <div className="space-y-8">
+          <div>
             {/* Welcome Section */}
-            <div>
+            <div className="mb-8">
               <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
                 Welcome back{user.user_metadata?.full_name ? `, ${user.user_metadata.full_name.split(" ")[0]}` : ""}! 👋
               </h2>
@@ -59,59 +58,7 @@ export default async function Home() {
               </p>
             </div>
 
-            {/* Add Bookmark Card */}
-            <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-2xl border border-gray-200/50 dark:border-gray-700/50 p-6 shadow-sm">
-              <div className="flex items-center gap-2 mb-4">
-                <div className="w-6 h-6 rounded-md bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center">
-                  <svg
-                    className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M12 4v16m8-8H4"
-                    />
-                  </svg>
-                </div>
-                <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                  Add New Bookmark
-                </h3>
-              </div>
-              <BookmarkForm />
-            </div>
-
-            {/* Bookmarks List Card */}
-            <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-2xl border border-gray-200/50 dark:border-gray-700/50 p-6 shadow-sm">
-              <div className="flex items-center gap-2 mb-4">
-                <div className="w-6 h-6 rounded-md bg-purple-100 dark:bg-purple-900/50 flex items-center justify-center">
-                  <svg
-                    className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"
-                    />
-                  </svg>
-                </div>
-                <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                  Your Bookmarks
-                </h3>
-                <span className="ml-auto text-xs text-green-500 flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
-                  Real-time
-                </span>
-              </div>
-              <BookmarkList />
-            </div>
+            <Dashboard />
           </div>
         ) : (
           /* Landing Page for unauthenticated users */
