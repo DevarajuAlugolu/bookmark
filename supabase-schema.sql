@@ -40,3 +40,7 @@ CREATE INDEX IF NOT EXISTS idx_bookmarks_user_id ON public.bookmarks(user_id);
 
 -- 5. Enable Realtime for the bookmarks table
 ALTER PUBLICATION supabase_realtime ADD TABLE public.bookmarks;
+
+-- 6. IMPORTANT: Set REPLICA IDENTITY to FULL so Realtime sends complete row data
+-- Without this, Realtime won't send proper INSERT/DELETE payloads
+ALTER TABLE public.bookmarks REPLICA IDENTITY FULL;

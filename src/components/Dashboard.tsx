@@ -13,7 +13,10 @@ export default function Dashboard() {
   const supabase = supabaseRef.current;
 
   useEffect(() => {
-    const fetchBookmarks = async () => {
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+
+    const init = async () => {
+      // 1. Get current user
       const {
         data: { user },
       } = await supabase.auth.getUser();
@@ -23,6 +26,7 @@ export default function Dashboard() {
         return;
       }
 
+      // 2. Fetch existing bookmarks
       const { data, error } = await supabase
         .from("bookmarks")
         .select("*")
@@ -35,56 +39,62 @@ export default function Dashboard() {
         setBookmarks(data || []);
       }
       setLoading(false);
-    };
 
-    fetchBookmarks();
-
-    // Set up real-time subscription
-    const channel = supabase
-      .channel("bookmarks-realtime")
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "bookmarks",
-        },
-        async (payload) => {
-          const {
-            data: { user },
-          } = await supabase.auth.getUser();
-          // Only add if it belongs to the current user
-          if (user && payload.new.user_id === user.id) {
+      // 3. Subscribe to realtime changes WITH user_id filter
+      //    This tells Supabase Realtime to only send events for THIS user's rows
+      channel = supabase
+        .channel(`bookmarks-${user.id}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "INSERT",
+            schema: "public",
+            table: "bookmarks",
+            filter: `user_id=eq.${user.id}`,
+          },
+          (payload) => {
+            console.log("Realtime INSERT received:", payload);
+            const newBookmark = payload.new as Bookmark;
             setBookmarks((prev) => {
-              // Avoid duplicates
-              if (prev.some((b) => b.id === payload.new.id)) return prev;
-              return [payload.new as Bookmark, ...prev];
+              if (prev.some((b) => b.id === newBookmark.id)) return prev;
+              return [newBookmark, ...prev];
             });
           }
-        }
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "DELETE",
-          schema: "public",
-          table: "bookmarks",
-        },
-        (payload) => {
-          setBookmarks((prev) =>
-            prev.filter((b) => b.id !== payload.old.id)
-          );
-        }
-      )
-      .subscribe();
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "DELETE",
+            schema: "public",
+            table: "bookmarks",
+            filter: `user_id=eq.${user.id}`,
+          },
+          (payload) => {
+            console.log("Realtime DELETE received:", payload);
+            const oldBookmark = payload.old as { id?: string };
+            if (oldBookmark.id) {
+              setBookmarks((prev) =>
+                prev.filter((b) => b.id !== oldBookmark.id)
+              );
+            }
+          }
+        )
+        .subscribe((status, err) => {
+          console.log("Realtime status:", status, err ?? "");
+        });
+    };
+
+    init();
 
     return () => {
-      supabase.removeChannel(channel);
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Called by BookmarkForm after successful insert — guarantees immediate UI update
+  // Called by BookmarkForm after successful insert — immediate UI update in same tab
   const handleBookmarkAdded = useCallback((bookmark: Bookmark) => {
     setBookmarks((prev) => {
       if (prev.some((b) => b.id === bookmark.id)) return prev;
@@ -93,24 +103,10 @@ export default function Dashboard() {
   }, []);
 
   const handleDelete = useCallback(async (id: string) => {
-    // Optimistic update — remove immediately
     setBookmarks((prev) => prev.filter((b) => b.id !== id));
-
     const { error } = await supabase.from("bookmarks").delete().eq("id", id);
     if (error) {
       console.error("Error deleting bookmark:", error);
-      // Refetch on error to restore state
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (user) {
-        const { data } = await supabase
-          .from("bookmarks")
-          .select("*")
-          .eq("user_id", user.id)
-          .order("created_at", { ascending: false });
-        if (data) setBookmarks(data);
-      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
