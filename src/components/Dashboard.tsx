@@ -14,6 +14,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     let channel: ReturnType<typeof supabase.channel> | null = null;
+    let cancelled = false;
 
     const init = async () => {
       // 1. Get current user
@@ -21,7 +22,7 @@ export default function Dashboard() {
         data: { user },
       } = await supabase.auth.getUser();
 
-      if (!user) {
+      if (!user || cancelled) {
         setLoading(false);
         return;
       }
@@ -33,6 +34,8 @@ export default function Dashboard() {
         .eq("user_id", user.id)
         .order("created_at", { ascending: false });
 
+      if (cancelled) return;
+
       if (error) {
         console.error("Error fetching bookmarks:", error);
       } else {
@@ -40,10 +43,19 @@ export default function Dashboard() {
       }
       setLoading(false);
 
-      // 3. Subscribe to realtime changes WITH user_id filter
-      //    This tells Supabase Realtime to only send events for THIS user's rows
+      // 3. Remove any stale channels before creating a new one
+      supabase.getChannels().forEach((ch) => {
+        if (ch.topic.startsWith("realtime:bookmarks-")) {
+          supabase.removeChannel(ch);
+        }
+      });
+
+      if (cancelled) return;
+
+      // 4. Subscribe with a unique channel name to avoid stale channel conflicts
+      const channelName = `bookmarks-${user.id}-${Date.now()}`;
       channel = supabase
-        .channel(`bookmarks-${user.id}`)
+        .channel(channelName)
         .on(
           "postgres_changes",
           {
@@ -53,7 +65,6 @@ export default function Dashboard() {
             filter: `user_id=eq.${user.id}`,
           },
           (payload) => {
-            console.log("Realtime INSERT received:", payload);
             const newBookmark = payload.new as Bookmark;
             setBookmarks((prev) => {
               if (prev.some((b) => b.id === newBookmark.id)) return prev;
@@ -70,7 +81,6 @@ export default function Dashboard() {
             filter: `user_id=eq.${user.id}`,
           },
           (payload) => {
-            console.log("Realtime DELETE received:", payload);
             const oldBookmark = payload.old as { id?: string };
             if (oldBookmark.id) {
               setBookmarks((prev) =>
@@ -86,7 +96,23 @@ export default function Dashboard() {
 
     init();
 
+    // Listen for auth state changes (e.g. logout in another tab)
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "SIGNED_OUT") {
+        setBookmarks([]);
+        setLoading(false);
+        if (channel) {
+          supabase.removeChannel(channel);
+          channel = null;
+        }
+      }
+    });
+
     return () => {
+      cancelled = true;
+      subscription.unsubscribe();
       if (channel) {
         supabase.removeChannel(channel);
       }
